@@ -1,7 +1,7 @@
 services:
   front:
     build:
-      context: ./webapp/front
+      context: ./front
     ports:
       - "80:80"
     restart: unless-stopped
@@ -12,7 +12,7 @@ services:
 
   back:
     build:
-      context: ./webapp/back
+      context: ./back
     environment:
       PLC_IP: plc
       PLC_PORT: 502
