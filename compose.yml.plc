@@ -1,0 +1,115 @@
+services:
+  # 1. Le PLC (Conteneur cible de l'attaque)
+  plc:
+    build:
+      context: ./OpenPLC_v3
+    image: openplc:v3
+    ports:
+      - "502:502" # Port Modbus/TCP standard ouvert pour les joueurs
+      - "8080:8080" # Interface web d'administration (pour charger le code ST)
+    volumes:
+      - openplc-data:/docker_persistent
+    restart: unless-stopped
+    networks:
+      - ot_network
+
+  # ==========================================
+  # CAPTEURS (SENSORS) - L'illusion de la sécurité
+  # ==========================================
+  sensor-rusty-block-zone:
+    image: python:3.9-alpine
+    container_name: fistiland_sensor_position
+    # Capteur optique bas de gamme. Détecte (parfois) le train.
+    command: sh -c "pip install pymodbus && python /app/sim_sensors.py --type position --target plc:502"
+    volumes:
+      - ./simulators:/app
+    networks:
+      - ot_network
+    depends_on:
+      - plc
+
+  sensor-duct-tape-harness:
+    image: python:3.9-alpine
+    container_name: fistiland_sensor_harness
+    # Simule les harnais. À Fistiland, le signal renvoie toujours "TRUE" pour gagner du temps au chargement.
+    command: sh -c "pip install pymodbus && python /app/sim_sensors.py --type harness_bypassed --target plc:502"
+    volumes:
+      - ./simulators:/app
+    networks:
+      - ot_network
+    depends_on:
+      - plc
+
+  sensor-g-force-pain-index:
+    image: python:3.9-alpine
+    container_name: fistiland_sensor_gforce
+    # Mesure la force G encaissée par les passagers (purement cosmétique pour l'IHM, pour le sadisme de l'opérateur)
+    command: sh -c "pip install pymodbus && python /app/sim_sensors.py --type g_force --target plc:502"
+    volumes:
+      - ./simulators:/app
+    networks:
+      - ot_network
+    depends_on:
+      - plc
+
+  # ==========================================
+  # ACTIONNEURS (ACTUATORS) - La mécanique de la peur
+  # ==========================================
+  actuator-vfd-propulsion:
+    image: python:3.9-alpine
+    container_name: fistiland_actuator_propulsion
+    # LE VECTEUR D'ATTAQUE : Variateur de fréquence (VFD) pour la catapulte de lancement.
+    # Lit un Holding Register (ex: 40001) pour la vitesse cible.
+    # Vitesse nominale : 150 km/h. Vitesse max : 180 km/h.
+    # Faille : Accepte n'importe quelle valeur. Une valeur < 80 km/h entraîne un Rollback mortel.
+    command: sh -c "pip install pymodbus && python /app/sim_actuators.py --type vfd_launch --target plc:502 --default_speed 150"
+    volumes:
+      - ./simulators:/app
+    networks:
+      - ot_network
+    depends_on:
+      - plc
+
+  actuator-budget-brakes:
+    image: python:3.9-alpine
+    container_name: fistiland_actuator_brakes
+    # Freins à friction d'occasion. S'activent sur commande (Coil), mais avec un temps de latence aléatoire.
+    command: sh -c "pip install pymodbus && python /app/sim_actuators.py --type dodgy_brakes --target plc:502"
+    volumes:
+      - ./simulators:/app
+    networks:
+      - ot_network
+    depends_on:
+      - plc
+
+  # # 2. Le Backend Express (L'intermédiaire Modbus <-> Web)
+  # backend:
+  #   build: ./backend
+  #   restart: always
+  #   environment:
+  #     - PLC_HOST=plc
+  #     - PLC_PORT=502
+  #   depends_on:
+  #     - plc
+  #   networks:
+  #     - ot_network
+
+  # # 3. Le Frontend Nginx (Le moniteur affiché aux joueurs)
+  # frontend:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80" # Le point d'entrée unique du challenge
+  #   volumes:
+  #     - ./frontend:/usr/share/nginx/html
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - ot_network
+
+networks:
+  ot_network:
+    driver: bridge
+
+volumes:
+  openplc-data:

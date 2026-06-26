@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IHM - Supervision Fistiland</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #1e1e24;
+        color: #fff;
+        padding: 20px;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      .header {
+        background: #e63946;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .status-box {
+        background: #2b2b36;
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #457b9d;
+        margin-bottom: 20px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+      .card {
+        background: #23232a;
+        padding: 15px;
+        border-radius: 6px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+      }
+      .badge {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-weight: bold;
+      }
+      .bg-true {
+        background: #2a9d8f;
+        color: white;
+      }
+      .bg-false {
+        background: #e63946;
+        color: white;
+      }
+      .alert {
+        background: #d90429;
+        color: white;
+        animation: blink 1s infinite;
+      }
+      @keyframes blink {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      h3 {
+        margin-top: 0;
+        color: #a8dadc;
+      }
+      .valeur {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #f4a261;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>IHM SUPERVISION - LE BROYEUR DE NUQUES</h1>
+        <p>Mode : LECTURE SEULE (Automatique)</p>
+      </div>
+
+      <div id="status-general" class="status-box">
+        <h3>Statut Automatisme du Backend</h3>
+        <div id="txt-status" style="font-size: 1.2em; font-weight: bold">
+          Connexion en cours...
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Capteurs (Entrées PLC)</h3>
+          <p>Train en Gare : <span id="capteur-gare" class="badge">--</span></p>
+          <p>
+            Harnais Baissés : <span id="capteur-harnais" class="badge">--</span>
+          </p>
+          <p>
+            Compteur Wagons : <span id="compteur-wagons" class="valeur">0</span>
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Actionneurs (Sorties PLC)</h3>
+          <p>
+            Ordre Lancement :
+            <span id="action-lancement" class="badge">--</span>
+          </p>
+          <p>
+            Ordre Freinage : <span id="action-freinage" class="badge">--</span>
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>Registres de Vitesse & Physique</h3>
+          <p>
+            Consigne Vitesse :
+            <span id="reg-vitesse" class="valeur">0</span> km/h
+          </p>
+          <p>Force G maximum : <span id="reg-g" class="valeur">0</span> G</p>
+        </div>
+
+        <div class="card" id="card-erreur">
+          <h3>Registre Erreur / Sécurité</h3>
+          <p>
+            Code Erreur Rollback : <span id="reg-erreur" class="valeur">0</span>
+          </p>
+          <div
+            id="msg-danger"
+            style="display: none; margin-top: 10px"
+            class="badge alert"
+          >
+            CRASH IMMINENT OU PRODUIT
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function updateDashboard() {
+        fetch("/api/status")
+          .then((response) => response.json())
+          .then((data) => {
+            // Statut général
+            document.getElementById("txt-status").innerText =
+              data.status_automatisme;
+
+            // Capteurs
+            setElementBadge(
+              "capteur-gare",
+              data.train_en_gare,
+              data.train_en_gare ? "OUI" : "NON",
+            );
+            setElementBadge(
+              "capteur-harnais",
+              data.harnais_baisse,
+              data.harnais_baisse ? "BLOQUÉS" : "OUVERTS",
+            );
+            document.getElementById("compteur-wagons").innerText =
+              data.wagons_lances;
+
+            // Actionneurs
+            setElementBadge(
+              "action-lancement",
+              data.ordre_lancement,
+              data.ordre_lancement ? "ACTIF (CATAPULTE)" : "INACTIF",
+            );
+            setElementBadge(
+              "action-freinage",
+              data.ordre_freinage,
+              data.ordre_freinage ? "FERMÉS (BLOCAGE)" : "OUVERTS (LIBRE)",
+            );
+
+            // Registres
+            document.getElementById("reg-vitesse").innerText =
+              data.consigne_vitesse;
+            document.getElementById("reg-g").innerText = (
+              data.force_g / 10
+            ).toFixed(1); // Si stocké en INT multiplié par 10
+            document.getElementById("reg-erreur").innerText =
+              data.erreur_rollback;
+
+            // Gestion de la panne critique cyber
+            if (data.erreur_rollback === 9999) {
+              document.getElementById("msg-danger").style.display = "block";
+              document.getElementById("status-general").style.borderLeft =
+                "5px solid #d90429";
+            } else {
+              document.getElementById("msg-danger").style.display = "none";
+              document.getElementById("status-general").style.borderLeft =
+                "5px solid #457b9d";
+            }
+          })
+          .catch((err) => {
+            document.getElementById("txt-status").innerText =
+              "Erreur de liaison avec le serveur Flask.";
+          });
+      }
+
+      function setElementBadge(id, state, text) {
+        const el = document.getElementById(id);
+        el.innerText = text;
+        el.className = "badge " + (state ? "bg-true" : "bg-false");
+      }
+
+      // Rafraîchissement toutes les 500ms
+      setInterval(updateDashboard, 500);
+      updateDashboard();
+    </script>
+  </body>
+</html>
